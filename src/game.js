@@ -7,7 +7,9 @@ import { ParticleSystem } from './particles.js';
 import { JuiceManager } from './juice.js';
 import { SaveManager } from './storage.js';
 import { SECTORS, ITEM_TYPES } from './levels.js';
-import { Player, NanoFabricator, DisplayShelf, CheckoutCounter, Customer, HelperDrone } from './entities.js';
+import { Player } from './player.js';
+import { GameRenderer } from './renderer.js';
+import { NanoFabricator, DisplayShelf, CheckoutCounter, Customer, HelperDrone } from './entities.js';
 
 export class QuantumEmporiumGame {
   constructor(canvas) {
@@ -75,6 +77,7 @@ export class QuantumEmporiumGame {
     this.startLoop();
   }
 
+  // Cálculo Matemático de Canvas Obrigatório (RULE #6 LEI ANTI-SOBREPOSIÇÃO)
   initResize() {
     const handleResize = () => {
       const w = window.innerWidth;
@@ -84,18 +87,31 @@ export class QuantumEmporiumGame {
       this.canvas.width = Math.floor(w * dpr);
       this.canvas.height = Math.floor(h * dpr);
 
-      // Uniform aspect ratio scale
-      const scaleX = w / this.vw;
-      const scaleY = h / this.vh;
-      this.scale = Math.min(scaleX, scaleY);
-      this.offsetX = Math.floor((w - this.vw * this.scale) / 2);
-      this.offsetY = Math.floor((h - this.vh * this.scale) / 2);
+      const isPortrait = h >= w * 1.05;
+      const container = document.getElementById('game-container');
+
+      if (isPortrait) {
+        if (container) container.classList.add('portrait-mode');
+        const hudH = 60, ctrlH = 120;
+        const availH = Math.max(160, h - hudH - ctrlH);
+        this.scale = Math.min(w / this.vw, availH / this.vh);
+        this.offsetX = Math.floor((w - this.vw * this.scale) / 2);
+        this.offsetY = Math.floor(hudH + (availH - this.vh * this.scale) / 2);
+      } else {
+        if (container) container.classList.remove('portrait-mode');
+        const scaleX = w / this.vw;
+        const scaleY = h / this.vh;
+        this.scale = Math.min(scaleX, scaleY);
+        this.offsetX = Math.floor((w - this.vw * this.scale) / 2);
+        this.offsetY = Math.floor((h - this.vh * this.scale) / 2);
+      }
 
       this.ctx.resetTransform();
       this.ctx.scale(dpr, dpr);
     };
 
     window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
     handleResize();
   }
 
@@ -113,11 +129,57 @@ export class QuantumEmporiumGame {
         this.dashRequested = false;
       }
     });
+
+    // Suporte Total a Mouse: Click e Drag to Move (Desktop & Tablets)
+    let isMouseDown = false;
+
+    const handlePointerMove = (clientX, clientY) => {
+      const targetX = (clientX - this.offsetX) / this.scale;
+      const targetY = (clientY - this.offsetY) / this.scale;
+      if (this.player) {
+        this.player.setNavTarget(targetX, targetY);
+      }
+    };
+
+    this.canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 0) {
+        isMouseDown = true;
+        handlePointerMove(e.clientX, e.clientY);
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isMouseDown) {
+        handlePointerMove(e.clientX, e.clientY);
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      isMouseDown = false;
+    });
+
+    // Toque Direto no Canvas para Mover
+    this.canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 0) {
+        const t = e.touches[0];
+        handlePointerMove(t.clientX, t.clientY);
+      }
+    }, { passive: true });
+
+    this.canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 0) {
+        const t = e.touches[0];
+        handlePointerMove(t.clientX, t.clientY);
+      }
+    }, { passive: true });
   }
 
   setJoystickInput(x, y) {
     this.joystickInput.x = x;
     this.joystickInput.y = y;
+    if (this.player && (x !== 0 || y !== 0)) {
+      this.player.clearNavTarget();
+    }
   }
 
   requestDash() {
@@ -125,12 +187,12 @@ export class QuantumEmporiumGame {
     setTimeout(() => { this.dashRequested = false; }, 100);
   }
 
-  // Load Sector with Unconditional Reset
+  // Load Sector com Reset Incondicional
   loadSector(sectorIndex) {
     this.currentSectorIndex = Math.max(0, Math.min(sectorIndex, SECTORS.length - 1));
     this.sector = SECTORS[this.currentSectorIndex];
 
-    // Unconditional Reset
+    // Reset Incondicional
     this.isRoundOver = false;
     this.isPaused = false;
     this.isAdPaused = false;
@@ -150,19 +212,21 @@ export class QuantumEmporiumGame {
     const backpackMax = SaveManager.getBackpackMax();
     const droneLvl = SaveManager.getUpgradeLevel('helperDrone');
     const autoCashierLvl = SaveManager.getUpgradeLevel('autoCashier');
+    const savedSkin = SaveManager.get().equippedSkin || 'CYBER_DEFAULT';
 
-    // Instantiate Player
+    // Instancia Player com Coyote Time e Skin
     this.player = new Player(this.sector.playerStart.x, this.sector.playerStart.y);
     this.player.speedMultiplier = speedMult;
     this.player.maxCapacity = backpackMax;
+    this.player.setSkin(savedSkin);
 
-    // Instantiate Fabricators
+    // Instancia Fabricadores
     this.fabricators = this.sector.fabricators.map(cfg => new NanoFabricator(cfg));
 
-    // Instantiate Shelves
+    // Instancia Prateleiras
     this.shelves = this.sector.shelves.map(cfg => new DisplayShelf(cfg));
 
-    // Instantiate Checkouts
+    // Instancia Caixas
     this.checkouts = this.sector.checkouts.map(cfg => {
       const ch = new CheckoutCounter(cfg);
       ch.autoCashierActive = (autoCashierLvl > 0);
@@ -198,7 +262,6 @@ export class QuantumEmporiumGame {
     this.isPaused = false;
   }
 
-  // Add 30 seconds extra time (Rewarded Ad reward)
   addExtraTime(seconds = 30) {
     this.shiftTimer += seconds;
     this.maxShiftTimer += seconds;
@@ -209,11 +272,9 @@ export class QuantumEmporiumGame {
     sound.playUpgrade();
   }
 
-  // Spawn customer wave
   spawnCustomer() {
     if (this.shelves.length === 0) return;
 
-    // Pick random shelf to target
     const randomShelf = this.shelves[Math.floor(Math.random() * this.shelves.length)];
     const types = ['CIVIC', 'CIVIC', 'CIVIC', 'VIP', 'CARGO', 'DRONE'];
     const selectedType = types[Math.floor(Math.random() * types.length)];
@@ -229,12 +290,11 @@ export class QuantumEmporiumGame {
     this.customers.push(customer);
   }
 
-  // Calculate 1..3 Stars Progression
   calculateStars() {
     const targets = this.sector.starTargets;
     let stars = 0;
 
-    // Check Star 1
+    // Star 1
     if (this.customersServed >= targets.star1.customers && this.shiftRevenue >= targets.star1.revenue) {
       stars = 1;
       if (!this.star1Reached) {
@@ -247,7 +307,7 @@ export class QuantumEmporiumGame {
       }
     }
 
-    // Check Star 2
+    // Star 2
     if (this.customersServed >= targets.star2.customers && this.shiftRevenue >= targets.star2.revenue) {
       stars = 2;
       if (!this.star2Reached) {
@@ -259,7 +319,7 @@ export class QuantumEmporiumGame {
       }
     }
 
-    // Check Star 3 (Mastery)
+    // Star 3 (Mastery)
     if (this.customersServed >= targets.star3.customers && this.shiftRevenue >= targets.star3.revenue) {
       stars = 3;
       if (!this.star3Reached) {
@@ -270,7 +330,6 @@ export class QuantumEmporiumGame {
         this.particles.emitStarBurst(this.player.x, this.player.y, 50);
         this.particles.emitVictoryConfetti(this.vw, this.vh, 80);
 
-        // Immediate Maximum Victory trigger
         setTimeout(() => {
           this.triggerVictory();
         }, 1200);
@@ -282,7 +341,6 @@ export class QuantumEmporiumGame {
 
   getStarProgressPct() {
     const targets = this.sector.starTargets;
-    // Composite score based on customer count and revenue
     const custRatio = this.customersServed / targets.star3.customers;
     const revRatio = this.shiftRevenue / targets.star3.revenue;
     const composite = (custRatio * 0.5 + revRatio * 0.5);
@@ -298,25 +356,22 @@ export class QuantumEmporiumGame {
         revenue: this.shiftRevenue,
         customersServed: this.customersServed,
         backpackCount: this.player ? this.player.stack.length : 0,
-        backpackMax: this.player ? this.player.maxCapacity : 3,
+        backpackMax: this.player ? this.player.maxCapacity : 4,
         star1Available: this.star1Reached
       });
     }
   }
 
-  // Trigger Victory (either by claiming button, 3★ or timer expiration with >=1★)
   triggerVictory() {
     if (this.isRoundOver) return;
     this.isRoundOver = true;
     this.isRunning = false;
 
-    // Minimum 1 star if completed
     const finalStars = Math.max(1, this.currentStars);
     sound.playVictory();
     this.juice.addTrauma(0.4);
     this.particles.emitVictoryConfetti(this.vw, this.vh, 80);
 
-    // Save progress
     SaveManager.addCredits(this.shiftRevenue);
     SaveManager.recordSectorCompletion(this.sector.id, finalStars, this.shiftRevenue, this.customersServed);
 
@@ -330,7 +385,6 @@ export class QuantumEmporiumGame {
     }
   }
 
-  // Trigger Defeat (shift ended with 0 stars)
   triggerDefeat() {
     if (this.isRoundOver) return;
     this.isRoundOver = true;
@@ -348,7 +402,6 @@ export class QuantumEmporiumGame {
     }
   }
 
-  // Core Fixed Timestep Physics & Game Loop
   startLoop() {
     let lastTime = performance.now();
 
@@ -357,7 +410,6 @@ export class QuantumEmporiumGame {
       lastTime = currentTime;
 
       if (this.isRunning && !this.isPaused && !this.isAdPaused && !this.isRoundOver) {
-        // Hit-stop pause handling
         const isHitStop = this.juice.update(dt);
         if (!isHitStop) {
           this.update(dt);
@@ -376,7 +428,7 @@ export class QuantumEmporiumGame {
   }
 
   update(dt) {
-    // 1. Shift Timer Countdown
+    // 1. Cronômetro do Turno
     this.shiftTimer -= dt;
     if (this.shiftTimer <= 0) {
       this.shiftTimer = 0;
@@ -388,7 +440,7 @@ export class QuantumEmporiumGame {
       return;
     }
 
-    // 2. Input Processing
+    // 2. Processamento de Entrada
     let inputX = 0;
     let inputY = 0;
     if (this.keys['w'] || this.keys['arrowup']) inputY -= 1;
@@ -396,23 +448,21 @@ export class QuantumEmporiumGame {
     if (this.keys['a'] || this.keys['arrowleft']) inputX -= 1;
     if (this.keys['d'] || this.keys['arrowright']) inputX += 1;
 
-    // Combine with virtual joystick
     inputX += this.joystickInput.x;
     inputY += this.joystickInput.y;
 
-    // Update Player
     const dash = this.dashRequested;
     this.player.update(dt, { x: inputX, y: inputY }, dash);
     if (this.player.isDashing) {
-      this.particles.emitDashTrail(this.player.x, this.player.y, '#00f5ff', 2);
+      this.particles.emitDashTrail(this.player.x, this.player.y, '#00f5ff', 3);
       sound.playDash();
     }
 
-    // Boundary constraints
+    // Restrição suave de limites da loja
     this.player.x = Math.max(120, Math.min(this.vw - 120, this.player.x));
     this.player.y = Math.max(90, Math.min(this.vh - 90, this.player.y));
 
-    // 3. Update Nano-Fabricators (Conveyor Belts)
+    // 3. Atualiza Fabricadores (com tolerância Coyote Time de 120ms)
     const overclockMult = SaveManager.getOverclockMultiplier();
     for (const fab of this.fabricators) {
       const produced = fab.update(dt, overclockMult);
@@ -420,9 +470,14 @@ export class QuantumEmporiumGame {
         this.particles.emitSparks(fab.x, fab.y, 6, fab.itemType.color);
       }
 
-      // Check player interaction with fabricator
       const dist = Math.hypot(this.player.x - fab.x, this.player.y - fab.y);
-      if (dist < fab.interactionRadius && this.player.canPickItem()) {
+      const inRadius = dist < (fab.interactionRadius + 15);
+      if (inRadius) {
+        this.player.triggerCoyoteInteraction(fab);
+      }
+      const canPick = inRadius || this.player.isWithinCoyoteWindow(fab);
+
+      if (canPick && this.player.canPickItem()) {
         const item = fab.dispense();
         if (item) {
           this.player.addItem(item);
@@ -432,13 +487,18 @@ export class QuantumEmporiumGame {
       }
     }
 
-    // 4. Update Display Shelves
+    // 4. Atualiza Prateleiras (com tolerância Coyote Time de 120ms)
     for (const shelf of this.shelves) {
       shelf.update(dt);
 
-      // Check player interaction with shelf (unloading items)
       const dist = Math.hypot(this.player.x - shelf.x, this.player.y - shelf.y);
-      if (dist < shelf.interactionRadius && this.player.hasItem(shelf.itemType.id)) {
+      const inRadius = dist < (shelf.interactionRadius + 18);
+      if (inRadius) {
+        this.player.triggerCoyoteInteraction(shelf);
+      }
+      const canRestock = inRadius || this.player.isWithinCoyoteWindow(shelf);
+
+      if (canRestock && this.player.hasItem(shelf.itemType.id)) {
         if (shelf.currentStock < shelf.maxStock) {
           const removed = this.player.removeItem(shelf.itemType.id);
           if (removed) {
@@ -450,19 +510,18 @@ export class QuantumEmporiumGame {
       }
     }
 
-    // 5. Update Helper Drones
+    // 5. Atualiza Drones Ajudantes
     for (const drone of this.helperDrones) {
       drone.update(dt, this.fabricators, this.shelves);
     }
 
-    // 6. Update Checkout Counters
+    // 6. Atualiza Caixas Quânticos
     for (const checkout of this.checkouts) {
       const distToPlayer = Math.hypot(this.player.x - checkout.x, this.player.y - checkout.y);
-      const isPlayerAttending = (distToPlayer < checkout.serviceRadius);
+      const isPlayerAttending = (distToPlayer < checkout.serviceRadius + 10);
 
       const finishedCustomer = checkout.update(dt, isPlayerAttending);
       if (finishedCustomer) {
-        // Customer completed transaction!
         const itemType = ITEM_TYPES[finishedCustomer.carriedItem];
         let price = itemType ? itemType.price : 50;
         if (finishedCustomer.type === 'VIP') price = Math.floor(price * 1.8);
@@ -471,14 +530,12 @@ export class QuantumEmporiumGame {
         this.shiftRevenue += price;
         this.customersServed++;
 
-        // Effects
         sound.playCashRegister();
         this.juice.addTrauma(0.2);
         this.juice.hitStop(45);
         this.juice.spawnFloatingText(checkout.x, checkout.y - 30, `+$${price}`, '#22c55e', 22);
         this.particles.emitCashBurst(checkout.x, checkout.y, 16);
 
-        // Remove from queue and mark leaving happy
         const qIdx = checkout.queue.indexOf(finishedCustomer);
         if (qIdx !== -1) checkout.queue.splice(qIdx, 1);
         finishedCustomer.state = 'LEAVING_HAPPY';
@@ -487,7 +544,7 @@ export class QuantumEmporiumGame {
       }
     }
 
-    // 7. Update Customers AI & Spawning
+    // 7. Spawning e IA de Clientes
     this.spawnTimer += dt;
     if (this.spawnTimer >= this.sector.customerSpawnInterval) {
       this.spawnTimer = 0;
@@ -508,7 +565,6 @@ export class QuantumEmporiumGame {
       }
 
       if (finished) {
-        // Clean up from checkout if applicable
         if (cust.targetCheckout) {
           const qIdx = cust.targetCheckout.queue.indexOf(cust);
           if (qIdx !== -1) cust.targetCheckout.queue.splice(qIdx, 1);
@@ -521,17 +577,15 @@ export class QuantumEmporiumGame {
     this.emitProgressUpdate();
   }
 
-  // Master Render Pipeline
+  // Master Render Pipeline com Shaders e Sprites de Alto Nível
   render() {
     const ctx = this.ctx;
     const w = this.canvas.width / (window.devicePixelRatio || 1);
     const h = this.canvas.height / (window.devicePixelRatio || 1);
 
-    // Clear background
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, w, h);
 
-    // Apply viewport scale & centering + Trauma² screen shake
     ctx.save();
     ctx.translate(this.offsetX, this.offsetY);
     ctx.scale(this.scale, this.scale);
@@ -540,55 +594,73 @@ export class QuantumEmporiumGame {
     ctx.translate(shake.x, shake.y);
     if (shake.angle) ctx.rotate(shake.angle);
 
-    // 1. Cyberpunk Market Floor Grid
+    // 1. Piso da Loja com Linhas de Navegação e Luzes Guia
     this.renderFloor(ctx);
 
-    // 2. Entrance & Exit Zones
+    // 2. Portas de Entrada e Saída
     this.renderDoors(ctx);
 
-    // 3. Fabricators & Conveyor Belts
+    // 3. Indicador de Destino do Mouse/Toque
+    if (this.player && this.player.navTarget) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0, 245, 255, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(this.player.x, this.player.y);
+      ctx.lineTo(this.player.navTarget.x, this.player.navTarget.y);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#00f5ff';
+      ctx.beginPath();
+      ctx.arc(this.player.navTarget.x, this.player.navTarget.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 4. Fabricadores e Esteiras Industriais com Shaders
     for (const fab of this.fabricators) {
-      fab.render(ctx);
+      GameRenderer.renderFabricator(ctx, fab);
     }
 
-    // 4. Display Shelves
+    // 5. Prateleiras Holográficas com Meniscos Líquidos e Anéis Arcanos
     for (const shelf of this.shelves) {
-      shelf.render(ctx);
+      GameRenderer.renderShelf(ctx, shelf);
     }
 
-    // 5. Checkout Counters
+    // 6. Caixas Quânticos
     for (const checkout of this.checkouts) {
       const dist = Math.hypot(this.player.x - checkout.x, this.player.y - checkout.y);
-      checkout.render(ctx, dist < checkout.serviceRadius);
+      checkout.render(ctx, dist < checkout.serviceRadius + 10);
     }
 
-    // 6. Customers
+    // 7. Androides Clientes com Modelos Detalhados
     for (const cust of this.customers) {
-      cust.render(ctx);
+      GameRenderer.renderCustomer(ctx, cust);
     }
 
-    // 7. Helper Drones
+    // 8. Drones Ajudantes
     for (const drone of this.helperDrones) {
       drone.render(ctx);
     }
 
-    // 8. Player
+    // 9. Herói com Capa Dinâmica e Viseira Neon
     if (this.player) {
-      this.player.render(ctx);
+      GameRenderer.renderPlayer(ctx, this.player);
     }
 
-    // 9. Particle System
+    // 10. Sistema de Partículas
     this.particles.render(ctx);
 
-    // 10. Floating Feedback Numbers & Texts
+    // 11. Textos Flutuantes
     this.juice.renderFloatingTexts(ctx);
 
     ctx.restore();
   }
 
   renderFloor(ctx) {
-    // Cyberpunk Market Tiles
-    ctx.strokeStyle = 'rgba(0, 245, 255, 0.06)';
+    ctx.strokeStyle = 'rgba(0, 245, 255, 0.05)';
     ctx.lineWidth = 1;
     const tileSize = 60;
 
@@ -606,12 +678,11 @@ export class QuantumEmporiumGame {
       ctx.stroke();
     }
 
-    // Market outer boundary neon wall
+    // Paredes Neon
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
     ctx.lineWidth = 3;
     ctx.strokeRect(80, 60, this.vw - 160, this.vh - 120);
 
-    // Glowing corner brackets
     const corners = [
       [80, 60],
       [this.vw - 80, 60],
@@ -628,7 +699,6 @@ export class QuantumEmporiumGame {
   }
 
   renderDoors(ctx) {
-    // Entrance Door (Left)
     ctx.fillStyle = '#10b981';
     ctx.shadowColor = '#10b981';
     ctx.shadowBlur = 12;
@@ -643,7 +713,6 @@ export class QuantumEmporiumGame {
     ctx.fillText('ENTRADA', 0, 0);
     ctx.restore();
 
-    // Exit Door (Right)
     ctx.fillStyle = '#0284c7';
     ctx.shadowColor = '#00f5ff';
     ctx.shadowBlur = 12;

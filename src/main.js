@@ -1,17 +1,18 @@
 // src/main.js
 // Application Coordinator: FluidCleb Splash (0.0s to 2.8s), Land in Gameplay,
-// Anti-Softlock ModalController, CrazyGames SDK v3 Hooks & Localization
+// Anti-Softlock ModalController, Skin Shop, Missions, CrazyGames SDK v3 Hooks & Localization
 
 import { sound } from './audio.js';
 import { crazygames } from './crazygames.js';
 import { SaveManager } from './storage.js';
 import { SECTORS } from './levels.js';
+import { SKINS } from './player.js';
 import { QuantumEmporiumGame } from './game.js';
 
 // Safe DOM Helper (Anti-Black-Screen)
 function safeSetText(id, val) {
   const el = document.getElementById(id);
-  if (el) el.textContent = String(val);
+  if (el) el.textContent = String(val !== undefined && val !== null ? val : '');
 }
 
 // Localization Dictionary
@@ -45,7 +46,11 @@ const I18N = {
     overclockDesc: 'Produz peças 25% mais rápido',
     level: 'Nível',
     maxLevel: 'NÍVEL MÁXIMO',
-    cost: 'Custo: $'
+    cost: 'Custo: $',
+    equipped: 'EQUIPADO',
+    equip: 'EQUIPAR',
+    buy: 'COMPRAR',
+    claimMission: 'RESGATAR'
   },
   en: {
     sector: 'SECTOR',
@@ -76,7 +81,11 @@ const I18N = {
     overclockDesc: 'Conveyors produce 25% faster',
     level: 'Level',
     maxLevel: 'MAX LEVEL',
-    cost: 'Cost: $'
+    cost: 'Cost: $',
+    equipped: 'EQUIPPED',
+    equip: 'EQUIP',
+    buy: 'BUY',
+    claimMission: 'CLAIM'
   }
 };
 
@@ -105,6 +114,8 @@ async function bootApp() {
         lore: document.getElementById('lore-overlay'),
         sectors: document.getElementById('modal-level-select'),
         upgrades: document.getElementById('modal-upgrades'),
+        skins: document.getElementById('modal-skins'),
+        missions: document.getElementById('modal-missions'),
         victory: document.getElementById('modal-victory'),
         defeat: document.getElementById('modal-defeat'),
         daily: document.getElementById('modal-daily'),
@@ -132,7 +143,6 @@ async function bootApp() {
       }
       if (this.activeModal === name) {
         this.activeModal = null;
-        // Resume game safely if no other modal is open and round is not over
         if (this.game && !this.game.isRoundOver) {
           this.game.resume();
           crazygames.gameplayStart();
@@ -292,10 +302,8 @@ async function bootApp() {
   }
 
   // Lore Overlay Buttons
-  const btnLoreSkip = document.getElementById('btn-lore-skip');
-  const btnLoreStart = document.getElementById('btn-lore-start');
-  if (btnLoreSkip) btnLoreSkip.addEventListener('click', () => { sound.playClick(); enterActiveGameplay(); });
-  if (btnLoreStart) btnLoreStart.addEventListener('click', () => { sound.playClick(); enterActiveGameplay(); });
+  document.getElementById('btn-lore-skip')?.addEventListener('click', () => { sound.playClick(); enterActiveGameplay(); });
+  document.getElementById('btn-lore-start')?.addEventListener('click', () => { sound.playClick(); enterActiveGameplay(); });
 
   // Claim 1★ Button on HUD
   const btnClaimVictory = document.getElementById('btn-claim-victory');
@@ -320,7 +328,6 @@ async function bootApp() {
     safeSetText('btn-claim-daily', t.claimDaily);
     safeSetText('btn-spin-wheel', t.spinWheel);
 
-    // Update sector title and objectives
     if (game && game.sector) {
       const secName = currentLang === 'pt' ? game.sector.namePt : game.sector.name;
       safeSetText('hud-sector-title', secName);
@@ -330,16 +337,15 @@ async function bootApp() {
   }
 
   // Language Toggle Button
-  const btnLang = document.getElementById('btn-lang-toggle');
-  if (btnLang) {
-    btnLang.addEventListener('click', () => {
-      sound.playClick();
-      currentLang = currentLang === 'pt' ? 'en' : 'pt';
-      updateLocalization();
-      renderSectorsGrid();
-      renderUpgradesGrid();
-    });
-  }
+  document.getElementById('btn-lang-toggle')?.addEventListener('click', () => {
+    sound.playClick();
+    currentLang = currentLang === 'pt' ? 'en' : 'pt';
+    updateLocalization();
+    renderSectorsGrid();
+    renderUpgradesGrid();
+    renderSkinsGrid();
+    renderMissionsList();
+  });
 
   // Sound Toggle Button
   const btnSound = document.getElementById('btn-sound-toggle');
@@ -353,16 +359,12 @@ async function bootApp() {
 
   // HUD Progress Callback
   game.onProgressUpdate = ({ timer, stars, progressPct, revenue, customersServed, backpackCount, backpackMax, star1Available }) => {
-    // Timer
     const mins = Math.floor(timer / 60);
     const secs = timer % 60;
     safeSetText('hud-timer-val', `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
-
-    // Credits & Backpack
     safeSetText('hud-credits-val', `$${SaveManager.getCredits()}`);
     safeSetText('hud-backpack-val', `${backpackCount}/${backpackMax}`);
 
-    // Progress Bar & Pins
     const fill = document.getElementById('hud-progress-fill');
     if (fill) fill.style.width = `${progressPct}%`;
     safeSetText('hud-progress-text', `${progressPct}%`);
@@ -374,7 +376,6 @@ async function bootApp() {
     if (p2) p2.classList.toggle('active', stars >= 2);
     if (p3) p3.classList.toggle('active', stars >= 3);
 
-    // Claim Victory Button
     if (btnClaimVictory) {
       if (star1Available && !game.isRoundOver) {
         btnClaimVictory.classList.remove('hidden');
@@ -402,83 +403,66 @@ async function bootApp() {
   };
 
   // Rewarded Ad 2: Double Credits at Victory
-  const btnVicDoubleAd = document.getElementById('btn-vic-double-ad');
-  if (btnVicDoubleAd) {
-    btnVicDoubleAd.addEventListener('click', () => {
-      sound.playClick();
-      crazygames.requestRewardedAd(sound, () => {
-        // Reward: double shift revenue
-        const bonus = game.shiftRevenue;
-        SaveManager.addCredits(bonus);
-        safeSetText('vic-revenue', `${currentLang === 'pt' ? 'Lucro do Turno (DOBRADO!)' : 'Shift Revenue (DOUBLED!)'}: $${game.shiftRevenue * 2}`);
-        sound.playVictory();
-        btnVicDoubleAd.disabled = true;
-        btnVicDoubleAd.textContent = currentLang === 'pt' ? '✅ CRÉDITOS DOBRADOS!' : '✅ CREDITS DOUBLED!';
-      });
+  document.getElementById('btn-vic-double-ad')?.addEventListener('click', () => {
+    sound.playClick();
+    crazygames.requestRewardedAd(sound, () => {
+      const bonus = game.shiftRevenue;
+      SaveManager.addCredits(bonus);
+      safeSetText('vic-revenue', `${currentLang === 'pt' ? 'Lucro do Turno (DOBRADO!)' : 'Shift Revenue (DOUBLED!)'}: $${game.shiftRevenue * 2}`);
+      sound.playVictory();
+      const btn = document.getElementById('btn-vic-double-ad');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = currentLang === 'pt' ? '✅ CRÉDITOS DOBRADOS!' : '✅ CREDITS DOUBLED!';
+      }
     });
-  }
+  });
 
   // Rewarded Ad 1: Extra Time on Defeat
-  const btnDefExtraTime = document.getElementById('btn-def-extra-time');
-  if (btnDefExtraTime) {
-    btnDefExtraTime.addEventListener('click', () => {
-      sound.playClick();
-      crazygames.requestRewardedAd(sound, () => {
-        // Reward: +30 seconds turbo rush
-        modalController.close('defeat');
-        game.addExtraTime(30);
-        game.start();
-        crazygames.gameplayStart();
-      });
-    });
-  }
-
-  // Victory / Defeat Buttons
-  const btnVicNext = document.getElementById('btn-vic-next');
-  if (btnVicNext) {
-    btnVicNext.addEventListener('click', () => {
-      sound.playClick();
-      modalController.close('victory');
-      crazygames.requestMidgameAd(sound, () => {
-        const nextIdx = (game.currentSectorIndex + 1) % SECTORS.length;
-        game.loadSector(nextIdx);
-        updateLocalization();
-        game.start();
-        crazygames.gameplayStart();
-      });
-    });
-  }
-
-  const btnVicMenu = document.getElementById('btn-vic-menu');
-  if (btnVicMenu) {
-    btnVicMenu.addEventListener('click', () => {
-      sound.playClick();
-      modalController.close('victory');
-      modalController.open('sectors');
-      renderSectorsGrid();
-    });
-  }
-
-  const btnDefRestart = document.getElementById('btn-def-restart');
-  if (btnDefRestart) {
-    btnDefRestart.addEventListener('click', () => {
-      sound.playClick();
+  document.getElementById('btn-def-extra-time')?.addEventListener('click', () => {
+    sound.playClick();
+    crazygames.requestRewardedAd(sound, () => {
       modalController.close('defeat');
-      game.loadSector(game.currentSectorIndex);
+      game.addExtraTime(30);
       game.start();
       crazygames.gameplayStart();
     });
-  }
+  });
 
-  const btnDefMenu = document.getElementById('btn-def-menu');
-  if (btnDefMenu) {
-    btnDefMenu.addEventListener('click', () => {
-      sound.playClick();
-      modalController.close('defeat');
-      modalController.open('sectors');
-      renderSectorsGrid();
+  // Victory / Defeat Buttons
+  document.getElementById('btn-vic-next')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.close('victory');
+    crazygames.requestMidgameAd(sound, () => {
+      const nextIdx = (game.currentSectorIndex + 1) % SECTORS.length;
+      game.loadSector(nextIdx);
+      updateLocalization();
+      game.start();
+      crazygames.gameplayStart();
     });
-  }
+  });
+
+  document.getElementById('btn-vic-menu')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.close('victory');
+    modalController.open('sectors');
+    renderSectorsGrid();
+  });
+
+  document.getElementById('btn-def-restart')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.close('defeat');
+    game.loadSector(game.currentSectorIndex);
+    game.start();
+    crazygames.gameplayStart();
+  });
+
+  document.getElementById('btn-def-menu')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.close('defeat');
+    modalController.open('sectors');
+    renderSectorsGrid();
+  });
 
   // Sector Selection Grid
   function renderSectorsGrid() {
@@ -565,13 +549,115 @@ async function bootApp() {
         btn.addEventListener('click', () => {
           if (SaveManager.upgrade(cfg.id, cost)) {
             sound.playUpgrade();
-            game.loadSector(game.currentSectorIndex); // reload active bonuses
+            game.loadSector(game.currentSectorIndex);
             renderUpgradesGrid();
           }
         });
       }
 
       grid.appendChild(card);
+    });
+  }
+
+  // Loja de Visuais / Skins do Gerente
+  function renderSkinsGrid() {
+    const grid = document.getElementById('skins-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    safeSetText('skins-credits-display', `💎 $${SaveManager.getCredits()}`);
+    const t = I18N[currentLang] || I18N.en;
+    const equipped = SaveManager.getEquippedSkin();
+    const unlocked = SaveManager.getUnlockedSkins();
+
+    Object.values(SKINS).forEach(skin => {
+      const isUnlocked = unlocked.includes(skin.id);
+      const isEquipped = equipped === skin.id;
+      const canAfford = SaveManager.getCredits() >= skin.price;
+
+      const card = document.createElement('div');
+      card.className = `skin-card ${isEquipped ? 'equipped' : ''}`;
+
+      const skinName = currentLang === 'pt' ? skin.namePt : skin.name;
+
+      card.innerHTML = `
+        <div class="skin-preview-swatch" style="background: ${skin.coatColor}; box-shadow: 0 0 14px ${skin.glowColor};">
+          <span style="color: ${skin.visorColor};">🥽</span>
+        </div>
+        <div class="skin-title" style="font-weight: 700; color: #ffffff;">${skinName}</div>
+        <div class="skin-price" style="font-size: 11px; color: ${skin.price === 0 ? '#10b981' : '#facc15'};">
+          ${skin.price === 0 ? 'PADRÃO' : `💎 $${skin.price}`}
+        </div>
+        <button class="skin-btn" ${(!isUnlocked && !canAfford) ? 'disabled' : ''}>
+          ${isEquipped ? t.equipped : isUnlocked ? t.equip : `${t.buy} ($${skin.price})`}
+        </button>
+      `;
+
+      const btn = card.querySelector('.skin-btn');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          sound.playClick();
+          if (isUnlocked) {
+            SaveManager.equipSkin(skin.id);
+            if (game.player) game.player.setSkin(skin.id);
+            sound.playUpgrade();
+            renderSkinsGrid();
+          } else if (canAfford) {
+            if (SaveManager.unlockSkin(skin.id, skin.price)) {
+              if (game.player) game.player.setSkin(skin.id);
+              sound.playVictory();
+              renderSkinsGrid();
+            }
+          }
+        });
+      }
+
+      grid.appendChild(card);
+    });
+  }
+
+  // Grimório de Missões
+  function renderMissionsList() {
+    const list = document.getElementById('missions-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const t = I18N[currentLang] || I18N.en;
+    const missions = SaveManager.getMissions();
+
+    missions.forEach(m => {
+      const card = document.createElement('div');
+      card.className = 'mission-card';
+
+      const title = currentLang === 'pt' ? m.title : m.titleEn;
+      const pct = Math.min(100, Math.floor((m.current / m.target) * 100));
+
+      card.innerHTML = `
+        <div class="mission-info">
+          <h4>${title}</h4>
+          <div style="font-size: 11px; color: #94a3b8;">Progresso: ${m.current}/${m.target} (💎 +$${m.reward})</div>
+          <div class="mission-progress-track">
+            <div class="mission-progress-fill" style="width: ${pct}%;"></div>
+          </div>
+        </div>
+        <button class="mission-claim-btn" ${(!m.canClaim || m.claimed) ? 'disabled' : ''}>
+          ${m.claimed ? t.dailyClaimed : t.claimMission}
+        </button>
+      `;
+
+      const btn = card.querySelector('.mission-claim-btn');
+      if (btn && m.canClaim && !m.claimed) {
+        btn.addEventListener('click', () => {
+          const reward = SaveManager.claimMission(m.id);
+          if (reward > 0) {
+            sound.playVictory();
+            safeSetText('hud-credits-val', `$${SaveManager.getCredits()}`);
+            renderMissionsList();
+          }
+        });
+      }
+
+      list.appendChild(card);
     });
   }
 
@@ -601,18 +687,16 @@ async function bootApp() {
     }
   }
 
-  const btnClaimDaily = document.getElementById('btn-claim-daily');
-  if (btnClaimDaily) {
-    btnClaimDaily.addEventListener('click', () => {
-      const res = SaveManager.claimDailyLogin();
-      if (res) {
-        sound.playVictory();
-        btnClaimDaily.disabled = true;
-        renderDailyGrid();
-        safeSetText('hud-credits-val', `$${SaveManager.getCredits()}`);
-      }
-    });
-  }
+  document.getElementById('btn-claim-daily')?.addEventListener('click', () => {
+    const res = SaveManager.claimDailyLogin();
+    if (res) {
+      sound.playVictory();
+      const btn = document.getElementById('btn-claim-daily');
+      if (btn) btn.disabled = true;
+      renderDailyGrid();
+      safeSetText('hud-credits-val', `$${SaveManager.getCredits()}`);
+    }
+  });
 
   // Lucky Wheel
   const btnSpinWheel = document.getElementById('btn-spin-wheel');
@@ -627,7 +711,7 @@ async function bootApp() {
       const wheelDisc = document.getElementById('wheel-disc');
       const rewards = [100, 250, 500, 150, 1000, 350];
       const winIdx = Math.floor(Math.random() * rewards.length);
-      const degrees = 1800 + winIdx * 60; // 5 full rotations + offset
+      const degrees = 1800 + winIdx * 60;
 
       if (wheelDisc) {
         wheelDisc.style.transform = `rotate(${degrees}deg)`;
@@ -643,7 +727,7 @@ async function bootApp() {
     });
   }
 
-  // Open & Close Modal Buttons
+  // Open & Close Modal Buttons (Instantâneo, Zero Latência)
   document.getElementById('btn-open-menu')?.addEventListener('click', () => {
     sound.playClick();
     modalController.open('sectors');
@@ -664,6 +748,26 @@ async function bootApp() {
     modalController.close('upgrades');
   });
 
+  document.getElementById('btn-open-skins')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.open('skins');
+    renderSkinsGrid();
+  });
+  document.getElementById('btn-close-skins')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.close('skins');
+  });
+
+  document.getElementById('btn-open-missions')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.open('missions');
+    renderMissionsList();
+  });
+  document.getElementById('btn-close-missions')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.close('missions');
+  });
+
   document.getElementById('btn-open-daily')?.addEventListener('click', () => {
     sound.playClick();
     modalController.open('daily');
@@ -681,6 +785,32 @@ async function bootApp() {
   document.getElementById('btn-close-wheel')?.addEventListener('click', () => {
     sound.playClick();
     modalController.close('wheel');
+  });
+
+  // Pills Rápidas no Modal de Fases
+  document.getElementById('pill-open-upgrades')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.open('upgrades');
+    renderUpgradesGrid();
+  });
+  document.getElementById('pill-open-skins')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.open('skins');
+    renderSkinsGrid();
+  });
+  document.getElementById('pill-open-missions')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.open('missions');
+    renderMissionsList();
+  });
+  document.getElementById('pill-open-daily')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.open('daily');
+    renderDailyGrid();
+  });
+  document.getElementById('pill-open-wheel')?.addEventListener('click', () => {
+    sound.playClick();
+    modalController.open('wheel');
   });
 
   // Mobile Touch Virtual Joystick

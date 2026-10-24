@@ -111,21 +111,72 @@ def run_e2e_test():
         assert "hidden" in modal_upgrades.get_attribute("class"), "Upgrades modal should be closed"
         print("[OK] Upgrades modal closed cleanly.")
 
-        # 8. Test Language Toggle
+        # 8. Test Opening & Closing Skin Shop Modal
+        btn_skins = driver.find_element(By.ID, "btn-open-skins")
+        driver.execute_script("arguments[0].click();", btn_skins)
+        time.sleep(0.5)
+        modal_skins = driver.find_element(By.ID, "modal-skins")
+        assert "hidden" not in modal_skins.get_attribute("class"), "Skins modal should be open"
+        skin_cards = driver.find_elements(By.CLASS_NAME, "skin-card")
+        print(f"[OK] Skin Shop opened. Verified {len(skin_cards)} available skins.")
+        assert len(skin_cards) >= 4, f"Expected at least 4 skins, found {len(skin_cards)}"
+
+        btn_close_skins = driver.find_element(By.ID, "btn-close-skins")
+        driver.execute_script("arguments[0].click();", btn_close_skins)
+        time.sleep(0.5)
+        assert "hidden" in modal_skins.get_attribute("class"), "Skins modal should be closed"
+        print("[OK] Skin Shop closed cleanly.")
+
+        # 9. Test Opening & Closing Missions Modal
+        btn_missions = driver.find_element(By.ID, "btn-open-missions")
+        driver.execute_script("arguments[0].click();", btn_missions)
+        time.sleep(0.5)
+        modal_missions = driver.find_element(By.ID, "modal-missions")
+        assert "hidden" not in modal_missions.get_attribute("class"), "Missions modal should be open"
+        mission_cards = driver.find_elements(By.CLASS_NAME, "mission-card")
+        print(f"[OK] Missions modal opened. Verified {len(mission_cards)} corporate missions.")
+        assert len(mission_cards) >= 4, f"Expected at least 4 missions, found {len(mission_cards)}"
+
+        btn_close_missions = driver.find_element(By.ID, "btn-close-missions")
+        driver.execute_script("arguments[0].click();", btn_close_missions)
+        time.sleep(0.5)
+        assert "hidden" in modal_missions.get_attribute("class"), "Missions modal should be closed"
+        print("[OK] Missions modal closed cleanly.")
+
+        # 10. Test Mobile Portrait Viewport & Rule #6 Anti-Overlapping Dock
+        print("[*] Testing Mobile Portrait Mode (390x844)...")
+        driver.set_window_size(390, 844)
+        time.sleep(1.0)
+        container = driver.find_element(By.ID, "game-container")
+        container_class = container.get_attribute("class")
+        assert "portrait-mode" in container_class, "game-container must have 'portrait-mode' class in portrait"
+        print("[OK] Rule #6 validated: portrait-mode class successfully activated.")
+
+        mobile_controls = driver.find_element(By.CLASS_NAME, "mobile-controls")
+        assert mobile_controls.is_displayed(), "Mobile controls dock must be visible in mobile portrait"
+        dock_height = mobile_controls.size['height']
+        print(f"[OK] Mobile dock height: {dock_height}px (Rule #6 requires ~115px dedicated dock)")
+        assert dock_height >= 100, f"Expected dock height >= 100px, got {dock_height}"
+
+        # Restore desktop window size
+        driver.set_window_size(1280, 720)
+        time.sleep(0.8)
+
+        # 11. Test Language Toggle
         btn_lang = driver.find_element(By.ID, "btn-lang-toggle")
         driver.execute_script("arguments[0].click();", btn_lang)
         time.sleep(0.4)
         lang_text = btn_lang.text
         print(f"[OK] Language toggle clicked. Button is now: '{lang_text.encode('ascii', 'replace').decode('ascii')}'")
 
-        # 9. Test Sound Toggle
+        # 12. Test Sound Toggle
         btn_sound = driver.find_element(By.ID, "btn-sound-toggle")
         driver.execute_script("arguments[0].click();", btn_sound)
         time.sleep(0.4)
         sound_icon = btn_sound.text
         print(f"[OK] Sound toggle clicked. Icon is now: '{sound_icon.encode('ascii', 'replace').decode('ascii')}'")
 
-        # 10. Check Console Logs
+        # 13. Check Console Logs
         logs = driver.get_log("browser")
         severe_errors = [entry for entry in logs if entry.get("level") == "SEVERE"]
         print(f"[*] Total browser logs: {len(logs)}, Severe errors: {len(severe_errors)}")

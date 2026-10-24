@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./src/style.css">
+  <!-- Escudo Defensivo de Runtime -->
+  <script src="./script.js"></script>
   <!-- CrazyGames Official SDK v3 -->
   <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 </head>
@@ -88,11 +90,13 @@
         <!-- Lado Direito do HUD -->
         <div class="hud-right">
           <div class="hud-badge credits-badge">💎 <span id="hud-credits-val">$200</span></div>
-          <div class="hud-badge backpack-badge">🎒 <span id="hud-backpack-val">0/3</span></div>
+          <div class="hud-badge backpack-badge">🎒 <span id="hud-backpack-val">0/4</span></div>
           <button id="btn-open-upgrades" class="hud-btn" title="Melhorias e Automações">⚡ UPGRADES</button>
           <button id="btn-open-menu" class="hud-btn" title="Selecionar Setor">☰ SETORES</button>
-          <button id="btn-open-daily" class="hud-btn" title="Recompensa Diária">📅</button>
-          <button id="btn-open-wheel" class="hud-btn" title="Roleta Quântica">🎡</button>
+          <button id="btn-open-skins" class="hud-btn secondary-action" title="Loja de Visuais">🎨</button>
+          <button id="btn-open-missions" class="hud-btn secondary-action" title="Missões">📜</button>
+          <button id="btn-open-daily" class="hud-btn secondary-action" title="Recompensa Diária">📅</button>
+          <button id="btn-open-wheel" class="hud-btn secondary-action" title="Roleta Quântica">🎡</button>
           <button id="btn-lang-toggle" class="hud-btn" title="Alternar Idioma">🌐 PT</button>
           <button id="btn-sound-toggle" class="hud-btn" title="Ligar/Desligar Som">🔊</button>
         </div>
@@ -108,7 +112,7 @@
         </div>
       </div>
 
-      <!-- Controles Touch Mobile (LEI ANTI-SOBREPOSIÇÃO) -->
+      <!-- Controles Touch Mobile (LEI ANTI-SOBREPOSIÇÃO - DOCK DEDICADO 115PX) -->
       <div id="mobile-controls" class="mobile-controls">
         <div id="joystick-zone" class="joystick-zone">
           <div id="joystick-base" class="joystick-base">
@@ -121,12 +125,19 @@
       </div>
     </div>
 
-    <!-- Modal de Seleção de Setores -->
+    <!-- Modal de Seleção de Setores (Com Barra de Pills para Acesso Rápido) -->
     <div id="modal-level-select" class="game-modal hidden">
       <div class="modal-content modal-large">
         <div class="modal-header">
           <h2>SELECIONAR SETOR COMERCIAL</h2>
           <button id="btn-close-menu" class="close-btn">✕</button>
+        </div>
+        <div class="modal-quick-pills">
+          <button id="pill-open-upgrades" class="pill-btn">⚡ Upgrades</button>
+          <button id="pill-open-skins" class="pill-btn">🎨 Visuais</button>
+          <button id="pill-open-missions" class="pill-btn">📜 Missões</button>
+          <button id="pill-open-daily" class="pill-btn">📅 Diário</button>
+          <button id="pill-open-wheel" class="pill-btn">🎡 Roleta</button>
         </div>
         <div id="sectors-grid" class="sectors-grid">
           <!-- Gerado dinamicamente por main.js -->
@@ -146,6 +157,36 @@
           <strong id="shop-credits-display" class="highlight-cyan">💎 $200</strong>
         </div>
         <div id="upgrades-grid" class="upgrades-grid">
+          <!-- Gerado dinamicamente por main.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Loja de Visuais / Skins -->
+    <div id="modal-skins" class="game-modal hidden">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>LOJA DE VISUAIS DO GERENTE</h2>
+          <button id="btn-close-skins" class="close-btn">✕</button>
+        </div>
+        <div class="upgrades-credit-header">
+          <span>SALDO DISPONÍVEL: </span>
+          <strong id="skins-credits-display" class="highlight-cyan">💎 $200</strong>
+        </div>
+        <div id="skins-grid" class="skins-grid">
+          <!-- Gerado dinamicamente por main.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Missões & Conquistas -->
+    <div id="modal-missions" class="game-modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>GRIMÓRIO DE MISSÕES CORPORATIVAS</h2>
+          <button id="btn-close-missions" class="close-btn">✕</button>
+        </div>
+        <div id="missions-list" class="missions-list">
           <!-- Gerado dinamicamente por main.js -->
         </div>
       </div>
