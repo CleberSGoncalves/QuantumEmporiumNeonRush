@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Quantum Emporium: Neon Rush • CrazyGames</title>
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/style.css">
+  <!-- CrazyGames Official SDK v3 -->
+  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+</head>
+<body>
+  <div id="game-container">
+    <!-- Canvas 100% Fullscreen Edge-to-Edge -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Intro FluidCleb Interactive (0.0s a 2.8s) -->
+    <div id="fluidcleb-splash" class="fluidcleb-overlay">
+      <canvas id="fluidcleb-canvas"></canvas>
+    </div>
+
+    <!-- Lore Interativa & Apresentação (Land in Gameplay <= 1 click) -->
+    <div id="lore-overlay" class="game-modal hidden">
+      <div class="modal-content lore-card">
+        <div class="lore-header">
+          <span class="lore-badge">NEO-TOKYO • 2088</span>
+          <h2 class="lore-title">QUANTUM EMPORIUM: NEON RUSH</h2>
+        </div>
+        <div class="lore-body">
+          <p class="lore-text">
+            Você é o gerente-chefe do maior entreposto de nanotecnologia e suprimentos cibernéticos de Neo-Tokyo. Androides executivos, mechs de carga e clientes VIP exigem entregas em tempo recorde!
+          </p>
+          <div class="lore-steps">
+            <div class="lore-step">
+              <span class="step-num">1</span>
+              <span>Colete suprimentos nas esteiras dos Nano-Fabricadores</span>
+            </div>
+            <div class="lore-step">
+              <span class="step-num">2</span>
+              <span>Abasteça as prateleiras holográficas antes que a paciência acabe</span>
+            </div>
+            <div class="lore-step">
+              <span class="step-num">3</span>
+              <span>Atenda nos caixas quânticos e colete pilhas de créditos</span>
+            </div>
+            <div class="lore-step">
+              <span class="step-num">4</span>
+              <span>Invista em drones entregadores, caixas automáticos e novas alas</span>
+            </div>
+          </div>
+        </div>
+        <div class="lore-actions">
+          <button id="btn-lore-skip" class="btn-secondary">PULAR HISTÓRIA (SKIP)</button>
+          <button id="btn-lore-start" class="btn-primary pulse-btn">INICIAR TURNO ➔</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HUD Flutuante Sobreposto (Pointer-Events: None) -->
+    <div id="in-game-hud">
+      <!-- Barra Superior -->
+      <div class="hud-top">
+        <div class="hud-left">
+          <div id="hud-sector-title" class="hud-badge sector-badge">SETOR 1: QUIOSQUE NANOTECH</div>
+          <div id="hud-timer-badge" class="hud-badge timer-badge">⏳ <span id="hud-timer-val">01:15</span></div>
+        </div>
+
+        <!-- Barra Central de 3 Estrelas -->
+        <div class="progress-container">
+          <div class="progress-track">
+            <div id="hud-progress-fill" class="progress-fill"></div>
+            <!-- Marcadores visuais de estrelas -->
+            <div id="star-pin-1" class="star-pin" style="left: 33%;">★</div>
+            <div id="star-pin-2" class="star-pin" style="left: 66%;">★★</div>
+            <div id="star-pin-3" class="star-pin" style="left: 98%;">★★★</div>
+          </div>
+          <span id="hud-progress-text" class="progress-label">0%</span>
+        </div>
+
+        <!-- Botão Dinâmico Pulsante de Conclusão de Fase (Aparece ao atingir 1★) -->
+        <button id="btn-claim-victory" class="hud-claim-btn hidden" title="Concluir Fase com Estrelas Obtidas">
+          ✅ CONCLUIR FASE (★) ➔
+        </button>
+
+        <!-- Lado Direito do HUD -->
+        <div class="hud-right">
+          <div class="hud-badge credits-badge">💎 <span id="hud-credits-val">$200</span></div>
+          <div class="hud-badge backpack-badge">🎒 <span id="hud-backpack-val">0/3</span></div>
+          <button id="btn-open-upgrades" class="hud-btn" title="Melhorias e Automações">⚡ UPGRADES</button>
+          <button id="btn-open-menu" class="hud-btn" title="Selecionar Setor">☰ SETORES</button>
+          <button id="btn-open-daily" class="hud-btn" title="Recompensa Diária">📅</button>
+          <button id="btn-open-wheel" class="hud-btn" title="Roleta Quântica">🎡</button>
+          <button id="btn-lang-toggle" class="hud-btn" title="Alternar Idioma">🌐 PT</button>
+          <button id="btn-sound-toggle" class="hud-btn" title="Ligar/Desligar Som">🔊</button>
+        </div>
+      </div>
+
+      <!-- Barra Inferior -->
+      <div class="hud-bottom">
+        <div class="hud-objective-container">
+          <span id="hud-objective-text" class="hud-objective">🎯 META: Atenda 6 Androides e Lucre $250</span>
+        </div>
+        <div class="hud-footer-link">
+          <a href="https://kinomuse.com.br" target="_blank" rel="noopener noreferrer">kinomuse.com.br</a>
+        </div>
+      </div>
+
+      <!-- Controles Touch Mobile (LEI ANTI-SOBREPOSIÇÃO) -->
+      <div id="mobile-controls" class="mobile-controls">
+        <div id="joystick-zone" class="joystick-zone">
+          <div id="joystick-base" class="joystick-base">
+            <div id="joystick-stick" class="joystick-stick"></div>
+          </div>
+        </div>
+        <div class="mobile-action-zone">
+          <button id="btn-mobile-dash" class="touch-btn dash-btn">DASH ⚡</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Seleção de Setores -->
+    <div id="modal-level-select" class="game-modal hidden">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>SELECIONAR SETOR COMERCIAL</h2>
+          <button id="btn-close-menu" class="close-btn">✕</button>
+        </div>
+        <div id="sectors-grid" class="sectors-grid">
+          <!-- Gerado dinamicamente por main.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Upgrades & Automações -->
+    <div id="modal-upgrades" class="game-modal hidden">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>MERCADO DE UPGRADES E AUTOMAÇÕES</h2>
+          <button id="btn-close-upgrades" class="close-btn">✕</button>
+        </div>
+        <div class="upgrades-credit-header">
+          <span>SALDO DISPONÍVEL: </span>
+          <strong id="shop-credits-display" class="highlight-cyan">💎 $200</strong>
+        </div>
+        <div id="upgrades-grid" class="upgrades-grid">
+          <!-- Gerado dinamicamente por main.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Vitória de Turno -->
+    <div id="modal-victory" class="game-modal hidden">
+      <div class="modal-content modal-victory-card">
+        <h2 class="victory-title">TURNO CONCLUÍDO!</h2>
+        <p id="vic-sector-name" class="highlight-cyan"></p>
+        <div id="vic-stars" class="victory-stars">★★★</div>
+        <div class="victory-stats">
+          <p id="vic-revenue">Lucro do Turno: $0</p>
+          <p id="vic-customers">Androides Atendidos: 0</p>
+        </div>
+        <div class="victory-ad-banner">
+          <button id="btn-vic-double-ad" class="btn-rewarded pulse-btn">
+            🎁 DOBRAR CRÉDITOS (2X) [CrazyGames Ad]
+          </button>
+        </div>
+        <div class="victory-actions">
+          <button id="btn-vic-menu" class="btn-secondary">MENU DE SETORES</button>
+          <button id="btn-vic-next" class="btn-primary">PRÓXIMO SETOR ➔</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Tempo Esgotado / Derrota -->
+    <div id="modal-defeat" class="game-modal hidden">
+      <div class="modal-content modal-defeat-card">
+        <h2 class="defeat-title">TURNO ENCERRADO!</h2>
+        <p class="defeat-desc">Você não atingiu a meta de ★ 1 Estrela antes do fechamento do mercado.</p>
+        <div class="defeat-stats">
+          <p id="def-customers">Clientes Atendidos: 0</p>
+          <p id="def-revenue">Lucro: $0</p>
+        </div>
+        <div class="defeat-actions">
+          <button id="btn-def-extra-time" class="btn-rewarded pulse-btn">
+            ⚡ +30s TURBO RUSH [CrazyGames Ad]
+          </button>
+          <button id="btn-def-restart" class="btn-secondary">TENTAR NOVAMENTE</button>
+          <button id="btn-def-menu" class="btn-secondary">SETORES</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Recompensa Diária (7 Dias) -->
+    <div id="modal-daily" class="game-modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>LOGIN DIÁRIO NEON</h2>
+          <button id="btn-close-daily" class="close-btn">✕</button>
+        </div>
+        <div id="daily-grid" class="daily-grid">
+          <!-- Gerado dinamicamente -->
+        </div>
+        <div class="daily-actions">
+          <button id="btn-claim-daily" class="btn-primary">RESGATAR RECOMPENSA</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal da Roleta Quântica -->
+    <div id="modal-wheel" class="game-modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>ROLETA QUÂNTICA DA SORTE</h2>
+          <button id="btn-close-wheel" class="close-btn">✕</button>
+        </div>
+        <div class="wheel-container">
+          <div id="wheel-disc" class="wheel-disc">
+            <span style="--i:0">💎 100</span>
+            <span style="--i:1">💎 250</span>
+            <span style="--i:2">💎 500</span>
+            <span style="--i:3">💎 150</span>
+            <span style="--i:4">💎 1000</span>
+            <span style="--i:5">💎 350</span>
+          </div>
+          <div class="wheel-pointer">▼</div>
+        </div>
+        <div class="wheel-actions">
+          <button id="btn-spin-wheel" class="btn-primary">GIRAR ROLETA GRÁTIS</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

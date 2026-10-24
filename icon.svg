@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050814"/>
+      <stop offset="50%" stop-color="#0a122c"/>
+      <stop offset="100%" stop-color="#03050d"/>
+    </linearGradient>
+    <linearGradient id="cyanNeon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f5ff"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="magentaNeon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <linearGradient id="goldNeon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#eab308"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background Rounded Base -->
+  <rect width="512" height="512" rx="100" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="4"/>
+
+  <!-- Cyber Grid Lines -->
+  <path d="M60 160 H452 M60 256 H452 M60 352 H452" stroke="rgba(0, 245, 255, 0.15)" stroke-width="2" stroke-dasharray="8 8"/>
+  <path d="M160 60 V452 M256 60 V452 M352 60 V452" stroke="rgba(168, 85, 247, 0.15)" stroke-width="2" stroke-dasharray="8 8"/>
+
+  <!-- Outer Quantum Ring -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#cyanNeon)" stroke-width="6" opacity="0.4" stroke-dasharray="24 12"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="url(#magentaNeon)" stroke-width="4" opacity="0.6"/>
+
+  <!-- Quantum Cube / Shopping Market Nanocube -->
+  <g filter="url(#glow)">
+    <!-- Top Face -->
+    <polygon points="256,120 376,190 256,260 136,190" fill="#00f5ff" opacity="0.85"/>
+    <!-- Left Face -->
+    <polygon points="136,190 256,260 256,390 136,320" fill="#0284c7" opacity="0.95"/>
+    <!-- Right Face -->
+    <polygon points="376,190 256,260 256,390 376,320" fill="#a855f7" opacity="0.9"/>
+
+    <!-- Inner Core Atom -->
+    <circle cx="256" cy="256" r="28" fill="url(#goldNeon)"/>
+    <circle cx="256" cy="256" r="40" fill="none" stroke="#fff" stroke-width="2" opacity="0.8"/>
+  </g>
+
+  <!-- Cyber Basket Handles / Electric Sparks -->
+  <path d="M176 170 Q256 60 336 170" fill="none" stroke="url(#cyanNeon)" stroke-width="8" stroke-linecap="round" filter="url(#glow)"/>
+  
+  <!-- Speed Rush Lines -->
+  <path d="M80 380 L160 380 M60 410 L130 410 M100 440 L190 440" stroke="url(#goldNeon)" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+  <path d="M432 132 L352 132 M452 102 L382 102 M412 72 L322 72" stroke="url(#cyanNeon)" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+</svg>
